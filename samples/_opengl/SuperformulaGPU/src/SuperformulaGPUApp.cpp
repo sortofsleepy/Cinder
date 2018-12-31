@@ -5,41 +5,13 @@
 #include "cinder/Utilities.h"
 #include "cinder/params/Params.h"
 #include "cinder/GeomIo.h"
-#include <emscripten.h>
-#include <emscripten/val.h>
-#include <emscripten/bind.h>
-#include "cinder/emscripten/CinderEmscripten.h"
 
 using namespace ci;
 using namespace ci::app;
-using namespace emscripten;
-using namespace ci::em;
 
-
-EM_JS(void,load_gui,(),{
-  
-  window.gui = new dat.GUI();
-
-  window.settings = {
-    A1:1,
-	B1:1,
-	M1:4,
-	N1:1,
-	N2:1,
-	N3:2,
-	A2:1,
-	B2:1,
-	M2:6,
-	N12:30,
-	N22:2,
-	N32:2.5,
-	Subdivisions:100,
-	Checkerboard:7,
-	drawNormals:false,
-	normalsLength:0.2
-  };
-   // remember to call "load_gui" in your c++
-});
+#ifdef CINDER_EMSCRIPTEN
+	#include "Gui.h"
+#endif 
 
 class SuperformulaGpuApp : public App {
   public:
@@ -49,7 +21,6 @@ class SuperformulaGpuApp : public App {
 	void	draw() override;
 
 	void	setupGeometry();
-	void updateGUI();
 	
 	CameraPersp				mCam;
 	gl::BatchRef			mBatch, mNormalsBatch;
@@ -72,11 +43,13 @@ class SuperformulaGpuApp : public App {
 		float	mN11, mN12;
 		float	mN21, mN22;
 		float	mN31, mN32;
+		float vvvv, vvvv2;
 	} mFormulaParams;
 	gl::UboRef				mFormulaParamsUbo;
 
-	emscripten::val gui = emscripten::val::undefined();
-	emscripten::val settings = emscripten::val::undefined();
+#ifdef CINDER_EMSCRIPTEN
+	GuiRef gui;
+#endif 
 };
 
 void SuperformulaGpuApp::setupGeometry()
@@ -84,25 +57,6 @@ void SuperformulaGpuApp::setupGeometry()
 	auto plane = geom::Plane().subdivisions( ivec2( mSubdivisions, mSubdivisions ) );
 	mBatch = gl::Batch::create( plane, mGlsl );
 	mNormalsBatch = gl::Batch::create( plane >> geom::VertexNormalLines( 0.0f ), mNormalsGlsl );
-}
-
-void SuperformulaGpuApp::updateGUI(){
-	mFormulaParams.mA1 = settings[ "A1" ].as<int>();
-	mFormulaParams.mB1 = settings[ "B1" ].as<int>();
-	mFormulaParams.mM1 = settings[ "M1" ].as<int>();
-	mFormulaParams.mN11 = settings[ "N1" ].as<int>();
-	mFormulaParams.mN21 = settings["N2"].as<int>();
-	mFormulaParams.mN31 = settings["N3"].as<int>();
-	
-	mFormulaParams.mA2 = settings[ "A2" ].as<int>();
-	mFormulaParams.mB2 = settings[ "B2" ].as<int>();
-	mFormulaParams.mM2 = settings[ "M2" ].as<int>();
-	mFormulaParams.mN12 = settings[ "N12" ].as<int>();
-	mFormulaParams.mN22 = settings["N22"].as<int>();
-	mFormulaParams.mN32 = settings["N32"].as<int>();
-
-	
-	
 }
 
 void SuperformulaGpuApp::setup()
@@ -120,33 +74,6 @@ void SuperformulaGpuApp::setup()
 	mNormalsLength = 0.20f;
 	mSubdivisions = 100;
 	mCheckerFrequency = 7;
-
-load_gui();
-
-gui = val::global( "gui" );
-settings = val::global( "settings" );
-
-gui.call<void>( "add",settings,val( "A1" ),val( 0 ),val( 5 ), val(0.05f) );
-gui.call<void>( "add",settings,val( "B1" ),val( 0 ),val( 5 ), val(0.05f) );
-gui.call<void>( "add",settings,val( "M1" ),val( 0 ),val( 20 ), val(0.25f) );
-gui.call<void>( "add",settings,val( "N1" ),val( 0 ),val( 100 ), val(1.0f) );
-gui.call<void>( "add",settings,val( "N2" ),val( -50 ),val( 100 ), val(0.5f) );
-gui.call<void>( "add",settings,val( "N3" ),val( -50 ),val( 100 ), val(0.5f) );
-
-
-gui.call<void>( "add",settings,val( "A2" ),val( 0 ),val( 5 ), val(0.05f) );
-gui.call<void>( "add",settings,val( "B2" ),val( 0 ),val( 5 ), val(0.05f) );
-gui.call<void>( "add",settings,val( "M2" ),val( 0 ),val( 20 ), val(0.25f) );
-gui.call<void>( "add",settings,val( "N12" ),val( 0 ),val( 100 ), val(1.0f) );
-gui.call<void>( "add",settings,val( "N22" ),val( -50 ),val( 100 ), val(0.5f) );
-gui.call<void>( "add",settings,val( "N32" ),val( -50 ),val( 100 ), val(0.5f) );
-
-auto controller = gui.call<val>( "add",settings,val( "Subdivisions" ),val( 5 ),val( 500 ), val(30.5f) );
-std::function<void(emscripten::val)> func = [=](emscripten::val e)->void{
-	setupGeometry();
-};
-controller.call<void>("onChange",helpers::generateCallback(func));
-
 
 #if ! defined( CINDER_GL_ES )
 	mParams = params::InterfaceGl::create( getWindow(), "App parameters", toPixels( ivec2( 200, 400 ) ) );
@@ -171,7 +98,9 @@ controller.call<void>("onChange",helpers::generateCallback(func));
 	mParams->addParam( "Normals Length", &mNormalsLength ).min( 0.0f ).max( 2.0f ).step( 0.025f );
 #endif
 
-
+#ifdef CINDER_EMSCRIPTEN
+	gui = Gui::create();
+#endif 
 
 	mCam.lookAt( vec3( 3, 2, 4 ) * 0.75f, vec3( 0 ) );
 
@@ -218,8 +147,6 @@ void SuperformulaGpuApp::update()
 	
 	mNormalsBatch->getGlslProg()->uniform( "uNormalsLength", mNormalsLength );
 	mBatch->getGlslProg()->uniform( "uCheckerFrequency", mCheckerFrequency );
-
-	updateGUI();
 }
 
 void SuperformulaGpuApp::draw()
