@@ -36,7 +36,7 @@ class SuperformulaGpuApp : public App {
 	int						mCheckerFrequency;
 	
 	// This is dependent on the C++ compiler structuring these vars in RAM the same way that GL's std140 does
-	struct {
+	struct FormulaData{
 		float	mA1, mA2;
 		float	mB1, mB2;
 		float	mM1, mM2;
@@ -44,7 +44,9 @@ class SuperformulaGpuApp : public App {
 		float	mN21, mN22;
 		float	mN31, mN32;
 		float vvvv, vvvv2;
-	} mFormulaParams;
+	};
+	
+	FormulaData mFormulaParams;
 	gl::UboRef				mFormulaParamsUbo;
 
 #ifdef CINDER_EMSCRIPTEN
