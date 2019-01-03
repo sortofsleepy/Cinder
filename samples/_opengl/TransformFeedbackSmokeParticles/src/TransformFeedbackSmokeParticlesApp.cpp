@@ -41,7 +41,6 @@ class TransformFeedbackSmokeParticlesApp : public App {
 	
   private:
 	gl::VaoRef						mPVao[2];
-	gl::TransformFeedbackObjRef		mPFeedbackObj[2];
 	gl::VboRef						mPPositions[2], mPVelocities[2], mPStartTimes[2], mPInitVelocity;
 	
 	gl::GlslProgRef					mPUpdateGlsl, mPRenderGlsl;
@@ -51,6 +50,11 @@ class TransformFeedbackSmokeParticlesApp : public App {
 	CameraPersp						mCam;
 	TriMeshRef						mTrimesh;
 	uint32_t						mDrawBuff;
+
+	// this only works on desktop 
+	#ifndef CINDER_EMSCRIPTEN
+	gl::TransformFeedbackObjRef		mPFeedbackObj[2];
+	#endif 
 };
 
 void TransformFeedbackSmokeParticlesApp::setup()
@@ -199,11 +203,13 @@ void TransformFeedbackSmokeParticlesApp::loadBuffers()
 		
 		// Bind the TransformFeedbackObj and bind each corresponding buffer
 		// to it's index.
+		#ifndef CINDER_EMSCRIPTEN
 		mPFeedbackObj[i]->bind();
 		gl::bindBufferBase( GL_TRANSFORM_FEEDBACK_BUFFER, PositionIndex, mPPositions[i] );
 		gl::bindBufferBase( GL_TRANSFORM_FEEDBACK_BUFFER, VelocityIndex, mPVelocities[i] );
 		gl::bindBufferBase( GL_TRANSFORM_FEEDBACK_BUFFER, StartTimeIndex, mPStartTimes[i] );
 		mPFeedbackObj[i]->unbind();
+		#endif 
 	}
 }
 
@@ -227,15 +233,28 @@ void TransformFeedbackSmokeParticlesApp::update()
 	
 	mPUpdateGlsl->uniform( "Time", getElapsedFrames() / 60.0f );
 	
+	#ifndef CINDER_EMSCRIPTEN
 	// Opposite TransformFeedbackObj to catch the calculated values
 	// In the opposite buffer
 	mPFeedbackObj[1-mDrawBuff]->bind();
+	#elif defined( CINDER_EMSCRIPTEN )
+	gl::bindBufferBase( GL_TRANSFORM_FEEDBACK_BUFFER, PositionIndex, mPPositions[1 - mDrawBuff] );
+	gl::bindBufferBase( GL_TRANSFORM_FEEDBACK_BUFFER, VelocityIndex, mPVelocities[1 - mDrawBuff] );
+	gl::bindBufferBase( GL_TRANSFORM_FEEDBACK_BUFFER, StartTimeIndex, mPStartTimes[1 - mDrawBuff] );
+	#endif
 	
 	// We begin Transform Feedback, using the same primitive that
 	// we're "drawing". Using points for the particle system.
 	gl::beginTransformFeedback( GL_POINTS );
 	gl::drawArrays( GL_POINTS, 0, nParticles );
 	gl::endTransformFeedback();	
+
+	// on the web, we need to unbind as well
+	#ifdef CINDER_EMSCRIPTEN
+	gl::bindBufferBase( GL_TRANSFORM_FEEDBACK_BUFFER, PositionIndex, nullptr );
+	gl::bindBufferBase( GL_TRANSFORM_FEEDBACK_BUFFER, VelocityIndex, nullptr  );
+	gl::bindBufferBase( GL_TRANSFORM_FEEDBACK_BUFFER, StartTimeIndex, nullptr );
+	#endif 
 }
 
 void TransformFeedbackSmokeParticlesApp::draw()
