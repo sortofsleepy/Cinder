@@ -13,6 +13,8 @@ using namespace ci;
 using namespace ci::app;
 using namespace std;
 
+#define STRINGIFY(A) #A
+
 // This example is based on samples from the 10th chapter of the book, OpenGL 4.0
 // Shading Language Cookbook. For more in-depth discussion of what is going on
 // here please refer to that reference.
@@ -94,6 +96,20 @@ void TransformFeedbackSmokeParticlesApp::loadShaders()
 		// one because we're not trying to write pixels while updating
 		// the position, velocity, etc. data to the screen.
 		mUpdateParticleGlslFormat.vertex( loadAsset( "updateSmoke.vert" ) )
+
+		// in WebGL you need both shaders to make a complete program and are not allow to 
+		// leave out one, even if you don't need it as in the case with Transform Feedback
+		// Add a valid passthru shader.
+		#ifdef CINDER_EMSCRIPTEN
+		.fragment(STRINGIFY(
+			precision highp float;
+			out vec4 glFragColor;
+			void main(){
+				glFragColor = vec4(1.);
+			}
+		))
+		#endif 
+
 		// This option will be either GL_SEPARATE_ATTRIBS or GL_INTERLEAVED_ATTRIBS,
 		// depending on the structure of our data, below. We're using multiple
 		// buffers. Therefore, we're using GL_SEPERATE_ATTRIBS
@@ -199,7 +215,9 @@ void TransformFeedbackSmokeParticlesApp::loadBuffers()
 		// Create a TransformFeedbackObj, which is similar to Vao
 		// It's used to capture the output of a glsl and uses the
 		// index of the feedback's varying variable names.
+		#ifndef CINDER_EMSCRIPTEN
 		mPFeedbackObj[i] = gl::TransformFeedbackObj::create();
+		#endif 
 		
 		// Bind the TransformFeedbackObj and bind each corresponding buffer
 		// to it's index.
@@ -237,10 +255,13 @@ void TransformFeedbackSmokeParticlesApp::update()
 	// Opposite TransformFeedbackObj to catch the calculated values
 	// In the opposite buffer
 	mPFeedbackObj[1-mDrawBuff]->bind();
+
 	#elif defined( CINDER_EMSCRIPTEN )
+	
 	gl::bindBufferBase( GL_TRANSFORM_FEEDBACK_BUFFER, PositionIndex, mPPositions[1 - mDrawBuff] );
 	gl::bindBufferBase( GL_TRANSFORM_FEEDBACK_BUFFER, VelocityIndex, mPVelocities[1 - mDrawBuff] );
 	gl::bindBufferBase( GL_TRANSFORM_FEEDBACK_BUFFER, StartTimeIndex, mPStartTimes[1 - mDrawBuff] );
+	
 	#endif
 	
 	// We begin Transform Feedback, using the same primitive that
@@ -249,12 +270,16 @@ void TransformFeedbackSmokeParticlesApp::update()
 	gl::drawArrays( GL_POINTS, 0, nParticles );
 	gl::endTransformFeedback();	
 
-	// on the web, we need to unbind as well
+
+	// in WebGL - you need to remember to unbind buffer positions, things aren't automatically unbound.
+	// TransformFeedbackObj doesn't support unbinding for some reason so doing this manually. 
 	#ifdef CINDER_EMSCRIPTEN
 	gl::bindBufferBase( GL_TRANSFORM_FEEDBACK_BUFFER, PositionIndex, nullptr );
-	gl::bindBufferBase( GL_TRANSFORM_FEEDBACK_BUFFER, VelocityIndex, nullptr  );
+	gl::bindBufferBase( GL_TRANSFORM_FEEDBACK_BUFFER, VelocityIndex, nullptr );
 	gl::bindBufferBase( GL_TRANSFORM_FEEDBACK_BUFFER, StartTimeIndex, nullptr );
 	#endif 
+
+	
 }
 
 void TransformFeedbackSmokeParticlesApp::draw()
@@ -267,7 +292,12 @@ void TransformFeedbackSmokeParticlesApp::draw()
 	gl::ScopedVao			vaoScope( mPVao[1-mDrawBuff] );
 	gl::ScopedGlslProg		glslScope( mPRenderGlsl );
 	gl::ScopedTextureBind	texScope( mSmokeTexture );
+
+	// no need to enable point size, automatically utilized in WebGL if you call gl_PointSize in shader.
+#ifndef CINDER_EMSCRIPTEN
 	gl::ScopedState			stateScope( GL_PROGRAM_POINT_SIZE, true );
+#endif 
+
 	gl::ScopedBlend			blendScope( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
 	
 	gl::pushMatrices();
@@ -279,6 +309,7 @@ void TransformFeedbackSmokeParticlesApp::draw()
 	gl::drawArrays( GL_POINTS, 0, nParticles );
 	
 	gl::popMatrices();
+	
 }
 
 CINDER_APP( TransformFeedbackSmokeParticlesApp, RendererGl )
